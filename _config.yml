@@ -1,0 +1,9 @@
+name: "Jillande"
+description: "Personal blog"
+
+url: "https://jillande.github.io"
+
+paginate: 10
+
+markdown: rdiscount
+permalink: pretty

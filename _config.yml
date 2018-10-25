@@ -1,9 +1,16 @@
-name: "Jillande"
-description: "Personal blog"
-
-url: "https://jillande.github.io"
-
+---
+title: Jillande.Github.Io
+timezone: UTC
+collections:
+  posts:
+    title: Posts
+    output: true
+  uploads:
+    title: Uploads
+    output: true
+name: Jillande
+description: Personal blog
+url: https://jillande.github.io
 paginate: 10
-
 markdown: kramdown
 permalink: pretty

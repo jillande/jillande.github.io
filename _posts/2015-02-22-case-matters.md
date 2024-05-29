@@ -1,6 +1,6 @@
 ---
 title: Case Matters
-date: 2015-02-23 00:00:00 Z
+date: 2015-02-22 17:00:00 -07:00
 layout: post
 ---
 

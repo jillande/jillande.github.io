@@ -1,6 +1,6 @@
 ---
 title: New post with Siteleaf
-date: 2018-10-25 21:41:00 Z
+date: 2018-10-25 15:41:00 -06:00
 categories:
 - jekyll
 - siteleaf

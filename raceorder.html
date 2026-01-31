@@ -38,6 +38,11 @@
             <div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">Race Team Generator</h1>
                 <p class="text-slate-500 print:hidden">Stratified age balancing into capped size "sub-team" team blocks, mathematically placed into equitable 3 race run orders by sub-team.</p>
+		<p class="text-slate-500 print:hidden">Sample start lists to test with</p>
+		<ul class="list-disc list-inside print:hidden">
+			<li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="2026-01-31-start_list.csv">1/31/2026 Age Class Open (Women) at Eldora</a>
+				(<a class="text-blue-700 font-medium text-fg-brand hover:underline" href="https://docs.google.com/spreadsheets/d/1z145NMU0ZGn7jpj-RtOaNGmULH6mk6lBcbEFzkOdhaY/edit?usp=sharing">1/31/26 Google Sheet</a>)</li>
+		</ul>
             </div>
         </header>
         
@@ -351,28 +356,109 @@ function renderTable() {
         </tr>`).join('');
 }
 
+/*
+function updateSummaryStats() {
+    const statsDiv = document.getElementById('summaryStats');
+    if (processedData.length === 0) return;
+
+    const N = processedData.length;
+    // Theoretical Center: 3 runs * ((N+1)/2)
+    const theoreticalIdeal = (3 * (N + 1) / 2).toFixed(1);
+
+    const ages = [...new Set(processedData.map(a => a.age_class))].sort();
+    
+    // Header for the summary
+    let html = `
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
+            <span class="text-[10px] uppercase font-black text-blue-600">Statistical Equity Proof</span>
+            <span class="text-[10px] font-bold text-slate-500">Theoretical Ideal Sum: ${theoreticalIdeal}</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
+
+    ages.forEach(age => {
+        const group = processedData.filter(a => a.age_class === age);
+        const count = group.length;
+        
+        // Extract all sums to find Min/Max/Avg
+        const sums = group.map(a => a.start_sum || 0);
+        const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
+        const minSum = Math.min(...sums);
+        const maxSum = Math.max(...sums);
+
+        html += `
+            <div class="border-l-4 border-emerald-500 pl-3 bg-white/50 py-1">
+                <div class="text-xs uppercase text-emerald-700 font-black mb-1">${age} (${count} Racers)</div>
+                <div class="space-y-1 text-slate-700">
+                    <div class="text-[13px] flex justify-between pr-2">
+                        <span>Average Seed Sum:</span>
+                        <span class="font-bold text-blue-700">${avgSum}</span>
+                    </div>
+                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
+                        <span>Min Seed Sum:</span>
+                        <span class="font-mono">${minSum}</span>
+                    </div>
+                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
+                        <span>Max Seed Sum:</span>
+                        <span class="font-mono">${maxSum}</span>
+                    </div>
+                </div>
+            </div>`;
+    });
+
+    html += `</div>`;
+    statsDiv.innerHTML = html;
+    statsDiv.classList.remove('hidden');
+}
+*/
 
 function updateSummaryStats() {
     const statsDiv = document.getElementById('summaryStats');
     if (processedData.length === 0) return;
 
     const ages = [...new Set(processedData.map(a => a.age_class))].sort();
-    let html = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
+    let cumulativeAthletes = 0;
     
+    let html = `
+        <div class="mb-4 pb-2 border-b border-blue-200">
+            <span class="text-[10px] uppercase font-black text-blue-600">Wave-Stratified Equity Proof</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
+
     ages.forEach(age => {
         const group = processedData.filter(a => a.age_class === age);
         const count = group.length;
+        const sums = group.map(a => a.start_sum || 0);
         
-        // Calculate the average of the combined start seeds
-        const avgSum = (group.reduce((sum, a) => sum + (a.start_sum || 0), 0) / count).toFixed(1);
+        // WAVE IDEAL CALCULATION:
+        // The center of this specific age wave, relative to the whole field.
+        // Formula: 3 runs * (Athletes_Before + (Group_Count + 1) / 2)
+        const waveCenter = (cumulativeAthletes + (count + 1) / 2);
+        const waveIdealSum = (3 * waveCenter).toFixed(1);
+
+        const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
+        const minSum = Math.min(...sums);
+        const maxSum = Math.max(...sums);
 
         html += `
-            <div class="border-l-4 border-emerald-500 pl-3">
-                <div class="text-xs uppercase text-emerald-700 font-black">${age} (${count} Racers)</div>
-                <div class="text-[14px] text-slate-700">
-                    Average start seed sum of field: <span class="font-bold">${avgSum}</span>
+            <div class="border-l-4 border-indigo-500 pl-3 bg-white/50 py-1">
+                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave</div>
+                <div class="space-y-1 text-slate-700">
+                    <div class="text-[11px] flex justify-between pr-2 italic text-slate-500">
+                        <span>Wave Ideal Sum:</span>
+                        <span>${waveIdealSum}</span>
+                    </div>
+                    <div class="text-[13px] flex justify-between pr-2 border-t border-slate-100 pt-1">
+                        <span>Actual Avg Sum:</span>
+                        <span class="font-bold text-indigo-700">${avgSum}</span>
+                    </div>
+                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
+                        <span>Actual Min/Max:</span>
+                        <span class="font-mono">${minSum} – ${maxSum}</span>
+                    </div>
                 </div>
             </div>`;
+        
+        cumulativeAthletes += count; // Move to the next wave
     });
 
     html += `</div>`;

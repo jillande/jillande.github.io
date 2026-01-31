@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Race Equity Auditor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 p-8">
+    <div class="max-w-6xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+        <header class="mb-8 border-b pb-6">
+            <h1 class="text-3xl font-black text-slate-900 uppercase">Race Equity Auditor</h1>
+            <p class="text-slate-500">Upload 1 to 5 start lists to audit the mathematical equity of the draw and shift/flip/butterfly/other applied.</p>
+		<p class="text-slate-500 print:hidden">Sample start lists to test with</p>
+                <ul class="list-disc list-inside print:hidden">
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_31_26_Run_1.csv">1/31/2026 Age Class Open (Women) at Eldora - Run 1</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_31_26_Run_2.csv">1/31/2026 Age Class Open (Women) at Eldora - Run 2</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_31_26_Run_3.csv">1/31/2026 Age Class Open (Women) at Eldora - Run 3</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_3_26_Run_1.csv">1/3/2026 Age Class Open (Women) at Steamboat - Run 1</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_3_26_Run_2.csv">1/3/2026 Age Class Open (Women) at Steamboat - Run 2</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="1_3_26_Run_3.csv">1/3/2026 Age Class Open (Women) at Steamboat - Run 3</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="YSL_2_23_25_Run_1.csv">2/23/2025 YSL (Women) at Eldora - Run 1</a>
+                        <li><a class="text-blue-700 font-medium text-fg-brand hover:underline" href="YSL_2_23_25_Run_2.csv">2/23/2025 YSL (Women) at Eldora - Run 2</a>
+                </ul>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="p-6 border-2 border-dashed border-indigo-200 rounded-xl bg-indigo-50/30">
+                <label class="block text-sm font-bold text-indigo-900 mb-2">Upload Start Lists (CSV)</label>
+                <input type="file" id="auditFiles" accept=".csv" multiple class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700">
+                <p class="mt-2 text-xs text-slate-400 font-medium italic">Note: Files will be processed in the order they are selected (Run 1, Run 2, etc.)</p>
+            </div>
+            <div id="fileStatus" class="flex flex-col justify-center space-y-1">
+                </div>
+        </div>
+
+        <div id="auditResults" class="hidden space-y-8">
+            <div id="auditSummary" class="bg-blue-50 p-6 rounded-xl border border-blue-100"></div>
+            
+            <div class="overflow-x-auto border rounded-xl shadow-sm">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50" id="auditHeader">
+                        </thead>
+                    <tbody id="auditBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let athleteMap = new Map();
+        let runCount = 0;
+
+        document.getElementById('auditFiles').addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            athleteMap.clear();
+            runCount = files.length;
+            
+            // Process files sequentially to maintain Run 1, Run 2 order
+            for (let i = 0; i < files.length; i++) {
+                await processAuditFile(files[i], i + 1);
+            }
+            
+            renderAudit();
+        });
+
+        async function processAuditFile(file, runIndex) {
+            return new Promise(resolve => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        results.data.forEach((row, idx) => {
+                            // Find values using flexible naming
+                            const name = getVal(row, ['name', 'athlete', 'athletename']);
+                            const club = getVal(row, ['club', 'clubname', 'team']);
+                            const age = getVal(row, ['age', 'ageclass', 'class', 'age_class']);
+                            const pos = parseInt(getVal(row, ['bib', 'pos', 'position', 'start_pos'])) || (idx + 1);
+
+                            const key = `${name.toLowerCase().trim()}-${club.toLowerCase().trim()}`;
+                            
+                            if (!athleteMap.has(key)) {
+                                athleteMap.set(key, { name, club, age, runs: {}, total: 0 });
+                            }
+                            
+                            const athlete = athleteMap.get(key);
+                            athlete.runs[runIndex] = pos;
+                            athlete.total += pos;
+                        });
+                        resolve();
+                    }
+                });
+            });
+        }
+
+        function getVal(row, possibleNames) {
+            const key = Object.keys(row).find(k => 
+                possibleNames.includes(k.toLowerCase().replace(/[^a-z0-9]/g, ''))
+            );
+            return row[key] || "";
+        }
+
+        function renderAudit() {
+            const container = document.getElementById('auditResults');
+            const body = document.getElementById('auditBody');
+            const header = document.getElementById('auditHeader');
+            container.classList.remove('hidden');
+
+            // 1. Create Headers
+            let headerHtml = `<tr class="text-xs font-bold text-slate-500 uppercase">
+                <th class="px-4 py-3 text-left">Athlete</th>
+                <th class="px-4 py-3 text-left">Age</th>`;
+            for(let i=1; i<=runCount; i++) headerHtml += `<th class="px-4 py-3 text-center">Run ${i}</th>`;
+            headerHtml += `<th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Sum</th></tr>`;
+            header.innerHTML = headerHtml;
+
+            // 2. Sort athletes by Sum (worst to best or vice-versa)
+            const sortedAthletes = Array.from(athleteMap.values()).sort((a,b) => b.total - a.total);
+
+            // 3. Render Table
+            body.innerHTML = sortedAthletes.map(a => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-2 font-bold">${a.name}<br><span class="text-[10px] text-slate-400 uppercase">${a.club}</span></td>
+                    <td class="px-4 py-2 text-slate-500">${a.age}</td>
+                    ${Array.from({length: runCount}, (_, i) => `<td class="px-4 py-2 text-center text-slate-400">${a.runs[i+1] || '-'}</td>`).join('')}
+                    <td class="px-4 py-2 text-center font-black bg-slate-50 text-indigo-600">${a.total}</td>
+                </tr>
+            `).join('');
+
+            updateAuditStats(sortedAthletes);
+        }
+
+/*
+function updateAuditStats(athletes) {
+    const statsDiv = document.getElementById('auditSummary');
+    if (athletes.length === 0) return;
+
+    // Get unique age classes from the uploaded data
+    const ages = [...new Set(athletes.map(a => a.age))].sort();
+    let cumulativeAthletes = 0;
+    
+    let html = `
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
+            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Actual Draw Equity</span>
+            <span class="text-[10px] font-medium text-slate-500 italic">Comparing uploaded start lists against mathematical wave ideals</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
+
+    ages.forEach(age => {
+        const group = athletes.filter(a => a.age === age);
+        const count = group.length;
+        const sums = group.map(a => a.total || 0);
+        
+        // Calculate the Ideal for this wave based on actual uploaded counts
+        const waveCenter = (cumulativeAthletes + (count + 1) / 2);
+        const waveIdealSum = (runCount * waveCenter).toFixed(1);
+
+        const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
+        const minSum = Math.min(...sums);
+        const maxSum = Math.max(...sums);
+        const spread = maxSum - minSum;
+
+        html += `
+            <div class="border-l-4 border-indigo-500 pl-3 bg-white/50 py-1">
+                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave (${count} Racers)</div>
+                <div class="space-y-1 text-slate-700">
+                    <div class="text-[11px] flex justify-between pr-2 italic text-slate-500">
+                        <span>Wave Ideal Sum:</span>
+                        <span>${waveIdealSum}</span>
+                    </div>
+                    <div class="text-[13px] flex justify-between pr-2 border-t border-slate-100 pt-1">
+                        <span>Actual Avg Sum:</span>
+                        <span class="font-bold ${Math.abs(avgSum - waveIdealSum) > 5 ? 'text-orange-600' : 'text-indigo-700'}">${avgSum}</span>
+                    </div>
+                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
+                        <span>Actual Min/Max Range:</span>
+                        <span class="font-mono">${minSum} – ${maxSum}</span>
+                    </div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                        Total Spread: ${spread} positions
+                    </div>
+                </div>
+            </div>`;
+        
+        cumulativeAthletes += count;
+    });
+
+    html += `</div>`;
+    statsDiv.innerHTML = html;
+    statsDiv.classList.remove('hidden');
+}
+*/
+
+
+async function processAuditFile(file, runIndex) {
+    return new Promise(resolve => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                results.data.forEach((row, idx) => {
+                    const name = getVal(row, ['name', 'athlete', 'athletename']);
+                    const club = getVal(row, ['club', 'clubname', 'team']);
+                    const age = getVal(row, ['age', 'ageclass', 'class', 'age_class']);
+                    
+                    // PRIORITY: Use a 'Position/Order' column if it exists, 
+                    // otherwise use the literal row index + 1
+                    const rawPos = getVal(row, ['pos', 'position', 'startpos', 'order']);
+                    const pos = rawPos ? parseInt(rawPos) : (idx + 1);
+
+                    const key = `${name.toLowerCase().trim()}-${club.toLowerCase().trim()}`;
+                    
+                    if (!athleteMap.has(key)) {
+                        athleteMap.set(key, { name, club, age, runs: {}, total: 0 });
+                    }
+                    
+                    const athlete = athleteMap.get(key);
+                    athlete.runs[runIndex] = pos;
+                    athlete.total += pos;
+                });
+                resolve();
+            }
+        });
+    });
+}
+
+function updateAuditStats(athletes) {
+    const statsDiv = document.getElementById('auditSummary');
+    if (athletes.length === 0) return;
+
+    // FIX: Sort ages numerically (U8, U10, U12...)
+    const ages = [...new Set(athletes.map(a => a.age))].sort((a, b) => {
+        return getAgeRank(a) - getAgeRank(b);
+    });
+
+    let cumulativeAthletes = 0;
+    let html = `
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
+            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Actual Draw Equity</span>
+            <span class="text-[10px] font-medium text-slate-500 italic tracking-tight">Wave-Stratified Analysis (${runCount} Runs)</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
+
+    ages.forEach(age => {
+        const group = athletes.filter(a => a.age === age);
+        const count = group.length;
+        const sums = group.map(a => a.total || 0);
+        
+        // Wave Ideal using the correct chronological order
+        const waveCenter = (cumulativeAthletes + (count + 1) / 2);
+        const waveIdealSum = (runCount * waveCenter).toFixed(1);
+
+        const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
+        const minSum = Math.min(...sums);
+        const maxSum = Math.max(...sums);
+
+        html += `
+            <div class="border-l-4 border-indigo-500 pl-3 bg-white/50 py-1">
+                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave</div>
+                <div class="space-y-1 text-slate-700">
+                    <div class="text-[11px] flex justify-between pr-2 italic text-slate-500">
+                        <span>Wave Ideal Sum:</span>
+                        <span>${waveIdealSum}</span>
+                    </div>
+                    <div class="text-[13px] flex justify-between pr-2 border-t border-slate-100 pt-1">
+                        <span>Actual Avg Sum:</span>
+                        <span class="font-bold text-indigo-700">${avgSum}</span>
+                    </div>
+                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
+                        <span>Min/Max Range:</span>
+                        <span class="font-mono">${minSum} – ${maxSum}</span>
+                    </div>
+                </div>
+            </div>`;
+        
+        cumulativeAthletes += count;
+    });
+
+    html += `</div>`;
+    statsDiv.innerHTML = html;
+    statsDiv.classList.remove('hidden');
+}
+
+function getAgeRank(ageStr) {
+    // Extracts digits from the string (U10 -> 10, U8 -> 8)
+    const match = ageStr.match(/\d+/);
+    return match ? parseInt(match[0]) : 999;
+}
+    </script>
+</body>
+</html>

@@ -44,6 +44,7 @@
                     <tbody id="auditBody" class="divide-y divide-slate-100 text-sm"></tbody>
                 </table>
             </div>
+		<div id="teamSummaryArea" class="hidden mt-8"></div>
         </div>
     </div>
 
@@ -102,40 +103,104 @@
         }
 
 	function renderAudit() {
-    const container = document.getElementById('auditResults');
-    const body = document.getElementById('auditBody');
-    const header = document.getElementById('auditHeader');
-    container.classList.remove('hidden');
+    		const container = document.getElementById('auditResults');
+    		const body = document.getElementById('auditBody');
+    		const header = document.getElementById('auditHeader');
+    		container.classList.remove('hidden');
 
-    // 1. Create Headers
-    let headerHtml = `<tr class="text-xs font-bold text-slate-500 uppercase">
-        <th class="px-4 py-3 text-left">Athlete</th>
-        <th class="px-4 py-3 text-left">Age</th>`;
-    for(let i=1; i<=runCount; i++) headerHtml += `<th class="px-4 py-3 text-center">Run ${i}</th>`;
-    headerHtml += `
-        <th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Sum</th>
-        <th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Avg Start</th>
-    </tr>`;
-    header.innerHTML = headerHtml;
+    		// 1. Create Headers
+    		let headerHtml = `<tr class="text-xs font-bold text-slate-500 uppercase">
+        		<th class="px-4 py-3 text-left">Athlete</th>
+        		<th class="px-4 py-3 text-left">Age</th>`;
+    		for(let i=1; i<=runCount; i++) headerHtml += `<th class="px-4 py-3 text-center">Run ${i}</th>`;
+    		headerHtml += `
+        		<th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Sum</th>
+        		<th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Avg Start</th>
+    		</tr>`;
+    		header.innerHTML = headerHtml;
 
-    // 2. Sort athletes by Sum
-    const sortedAthletes = Array.from(athleteMap.values()).sort((a,b) => b.total - a.total);
+    		// 2. Sort athletes by Sum
+    		const sortedAthletes = Array.from(athleteMap.values()).sort((a,b) => b.total - a.total);
 
-    // 3. Render Table with Average column
-    body.innerHTML = sortedAthletes.map(a => {
-        const avgStart = (a.total / runCount).toFixed(1);
-        return `
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="px-4 py-2 font-bold">${a.name}<br><span class="text-[10px] text-slate-400 uppercase">${a.club}</span></td>
-                <td class="px-4 py-2 text-slate-500">${a.age}</td>
-                ${Array.from({length: runCount}, (_, i) => `<td class="px-4 py-2 text-center text-slate-400">${a.runs[i+1] || '-'}</td>`).join('')}
-                <td class="px-4 py-2 text-center font-black bg-slate-50 text-indigo-600">${a.total}</td>
-                <td class="px-4 py-2 text-center font-bold bg-slate-50 text-slate-700">${avgStart}</td>
-            </tr>
-        `;
-    }).join('');
+    		// 3. Render Table with Average column
+    		body.innerHTML = sortedAthletes.map(a => {
+        		const avgStart = (a.total / runCount).toFixed(1);
+        		return `
+            		<tr class="hover:bg-slate-50 transition-colors">
+                		<td class="px-4 py-2 font-bold">${a.name}<br><span class="text-[10px] text-slate-400 uppercase">${a.club}</span></td>
+                		<td class="px-4 py-2 text-slate-500">${a.age}</td>
+                		${Array.from({length: runCount}, (_, i) => `<td class="px-4 py-2 text-center text-slate-400">${a.runs[i+1] || '-'}</td>`).join('')}
+                		<td class="px-4 py-2 text-center font-black bg-slate-50 text-indigo-600">${a.total}</td>
+                		<td class="px-4 py-2 text-center font-bold bg-slate-50 text-slate-700">${avgStart}</td>
+            		</tr>
+        		`;
+    		}).join('');
 
-    updateAuditStats(sortedAthletes);
+    		updateAuditStats(sortedAthletes);
+    		renderTeamSummary(sortedAthletes);
+	}
+
+function renderTeamSummary(athletes) {
+    const summaryDiv = document.getElementById('teamSummaryArea');
+    
+    // Group athletes by club
+    const clubGroups = {};
+    athletes.forEach(a => {
+        if (!clubGroups[a.club]) {
+            clubGroups[a.club] = { name: a.club, count: 0, runTotals: {}, totalSum: 0 };
+        }
+        clubGroups[a.club].count++;
+        
+        // Sum up positions for each run
+        for (let i = 1; i <= runCount; i++) {
+            const pos = a.runs[i] || 0;
+            clubGroups[a.club].runTotals[i] = (clubGroups[a.club].runTotals[i] || 0) + pos;
+        }
+        clubGroups[a.club].totalSum += a.total;
+    });
+
+    const sortedClubs = Object.values(clubGroups).sort((a, b) => a.name.localeCompare(b.name));
+
+    let rows = "";
+    sortedClubs.forEach(club => {
+        let runCells = "";
+        for (let i = 1; i <= runCount; i++) {
+            // Calculate average seed for the club in this specific run
+            const avgRunPos = (club.runTotals[i] / club.count).toFixed(1);
+            runCells += `<td class="p-2 text-center">${avgRunPos}</td>`;
+        }
+        
+        const totalAvg = (club.totalSum / (club.count * runCount)).toFixed(1);
+
+        rows += `
+            <tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                <td class="p-2 font-bold text-slate-100">${club.name} <span class="text-slate-500 font-normal">(${club.count})</span></td>
+                ${runCells}
+                <td class="p-2 bg-slate-800 text-center font-bold text-orange-400">${totalAvg}</td>
+            </tr>`;
+    });
+
+    summaryDiv.innerHTML = `
+        <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 shadow-2xl">
+            <h3 class="text-white font-bold mb-4 uppercase tracking-widest text-sm flex items-center gap-2">Club Start Equity (Average Seeds)</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-slate-300">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-center">
+                            <th class="text-left p-2">Club (Count)</th>
+                            ${Array.from({length: runCount}, (_, i) => `<th class="p-2">Run ${i+1} Avg</th>`).join('')}
+                            <th class="p-2 text-orange-400">Total Avg Seed</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <p class="mt-4 text-[10px] text-slate-500 italic">
+                * Lower numbers mean the club started earlier on average. In a perfectly balanced rotation, all clubs should have similar "Total Avg Seeds."
+            </p>
+        </div>`;
+    
+    summaryDiv.classList.remove('hidden');
 }
 
 async function processAuditFile(file, fileIndex) {
@@ -208,7 +273,7 @@ function updateAuditStats(athletes) {
     let cumulativeAthletes = 0;
     let html = `
         <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
-            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Wave-Stratified Equity</span>
+            <span class="text-[10px] uppercase font-black text-blue-600">Wave-Stratified Equity</span>
             <span class="text-[10px] font-medium text-slate-500 italic tracking-tight">${runCount} Runs Analyzed</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;

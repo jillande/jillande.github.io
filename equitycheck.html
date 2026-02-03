@@ -51,20 +51,19 @@
         let athleteMap = new Map();
         let runCount = 0;
 
-        document.getElementById('auditFiles').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-            
-            athleteMap.clear();
-            runCount = files.length;
-            
-            // Process files sequentially to maintain Run 1, Run 2 order
-            for (let i = 0; i < files.length; i++) {
-                await processAuditFile(files[i], i + 1);
-            }
-            
-            renderAudit();
-        });
+	document.getElementById('auditFiles').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    
+    athleteMap.clear();
+    runCount = 0; // Reset to 0 so the file processing can discover the true count
+
+    for (let i = 0; i < files.length; i++) {
+        await processAuditFile(files[i], i + 1);
+    }
+    
+    renderAudit();
+});
 
         async function processAuditFile(file, runIndex) {
             return new Promise(resolve => {
@@ -102,99 +101,44 @@
             return row[key] || "";
         }
 
-        function renderAudit() {
-            const container = document.getElementById('auditResults');
-            const body = document.getElementById('auditBody');
-            const header = document.getElementById('auditHeader');
-            container.classList.remove('hidden');
+	function renderAudit() {
+    const container = document.getElementById('auditResults');
+    const body = document.getElementById('auditBody');
+    const header = document.getElementById('auditHeader');
+    container.classList.remove('hidden');
 
-            // 1. Create Headers
-            let headerHtml = `<tr class="text-xs font-bold text-slate-500 uppercase">
-                <th class="px-4 py-3 text-left">Athlete</th>
-                <th class="px-4 py-3 text-left">Age</th>`;
-            for(let i=1; i<=runCount; i++) headerHtml += `<th class="px-4 py-3 text-center">Run ${i}</th>`;
-            headerHtml += `<th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Sum</th></tr>`;
-            header.innerHTML = headerHtml;
+    // 1. Create Headers
+    let headerHtml = `<tr class="text-xs font-bold text-slate-500 uppercase">
+        <th class="px-4 py-3 text-left">Athlete</th>
+        <th class="px-4 py-3 text-left">Age</th>`;
+    for(let i=1; i<=runCount; i++) headerHtml += `<th class="px-4 py-3 text-center">Run ${i}</th>`;
+    headerHtml += `
+        <th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Sum</th>
+        <th class="px-4 py-3 text-center bg-slate-100 text-slate-900">Avg Start</th>
+    </tr>`;
+    header.innerHTML = headerHtml;
 
-            // 2. Sort athletes by Sum (worst to best or vice-versa)
-            const sortedAthletes = Array.from(athleteMap.values()).sort((a,b) => b.total - a.total);
+    // 2. Sort athletes by Sum
+    const sortedAthletes = Array.from(athleteMap.values()).sort((a,b) => b.total - a.total);
 
-            // 3. Render Table
-            body.innerHTML = sortedAthletes.map(a => `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="px-4 py-2 font-bold">${a.name}<br><span class="text-[10px] text-slate-400 uppercase">${a.club}</span></td>
-                    <td class="px-4 py-2 text-slate-500">${a.age}</td>
-                    ${Array.from({length: runCount}, (_, i) => `<td class="px-4 py-2 text-center text-slate-400">${a.runs[i+1] || '-'}</td>`).join('')}
-                    <td class="px-4 py-2 text-center font-black bg-slate-50 text-indigo-600">${a.total}</td>
-                </tr>
-            `).join('');
+    // 3. Render Table with Average column
+    body.innerHTML = sortedAthletes.map(a => {
+        const avgStart = (a.total / runCount).toFixed(1);
+        return `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-2 font-bold">${a.name}<br><span class="text-[10px] text-slate-400 uppercase">${a.club}</span></td>
+                <td class="px-4 py-2 text-slate-500">${a.age}</td>
+                ${Array.from({length: runCount}, (_, i) => `<td class="px-4 py-2 text-center text-slate-400">${a.runs[i+1] || '-'}</td>`).join('')}
+                <td class="px-4 py-2 text-center font-black bg-slate-50 text-indigo-600">${a.total}</td>
+                <td class="px-4 py-2 text-center font-bold bg-slate-50 text-slate-700">${avgStart}</td>
+            </tr>
+        `;
+    }).join('');
 
-            updateAuditStats(sortedAthletes);
-        }
-
-/*
-function updateAuditStats(athletes) {
-    const statsDiv = document.getElementById('auditSummary');
-    if (athletes.length === 0) return;
-
-    // Get unique age classes from the uploaded data
-    const ages = [...new Set(athletes.map(a => a.age))].sort();
-    let cumulativeAthletes = 0;
-    
-    let html = `
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
-            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Actual Draw Equity</span>
-            <span class="text-[10px] font-medium text-slate-500 italic">Comparing uploaded start lists against mathematical wave ideals</span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
-
-    ages.forEach(age => {
-        const group = athletes.filter(a => a.age === age);
-        const count = group.length;
-        const sums = group.map(a => a.total || 0);
-        
-        // Calculate the Ideal for this wave based on actual uploaded counts
-        const waveCenter = (cumulativeAthletes + (count + 1) / 2);
-        const waveIdealSum = (runCount * waveCenter).toFixed(1);
-
-        const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
-        const minSum = Math.min(...sums);
-        const maxSum = Math.max(...sums);
-        const spread = maxSum - minSum;
-
-        html += `
-            <div class="border-l-4 border-indigo-500 pl-3 bg-white/50 py-1">
-                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave (${count} Racers)</div>
-                <div class="space-y-1 text-slate-700">
-                    <div class="text-[11px] flex justify-between pr-2 italic text-slate-500">
-                        <span>Wave Ideal Sum:</span>
-                        <span>${waveIdealSum}</span>
-                    </div>
-                    <div class="text-[13px] flex justify-between pr-2 border-t border-slate-100 pt-1">
-                        <span>Actual Avg Sum:</span>
-                        <span class="font-bold ${Math.abs(avgSum - waveIdealSum) > 5 ? 'text-orange-600' : 'text-indigo-700'}">${avgSum}</span>
-                    </div>
-                    <div class="text-[11px] flex justify-between pr-2 text-slate-500">
-                        <span>Actual Min/Max Range:</span>
-                        <span class="font-mono">${minSum} – ${maxSum}</span>
-                    </div>
-                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                        Total Spread: ${spread} positions
-                    </div>
-                </div>
-            </div>`;
-        
-        cumulativeAthletes += count;
-    });
-
-    html += `</div>`;
-    statsDiv.innerHTML = html;
-    statsDiv.classList.remove('hidden');
+    updateAuditStats(sortedAthletes);
 }
-*/
 
-
-async function processAuditFile(file, runIndex) {
+async function processAuditFile(file, fileIndex) {
     return new Promise(resolve => {
         Papa.parse(file, {
             header: true,
@@ -205,21 +149,47 @@ async function processAuditFile(file, runIndex) {
                     const club = getVal(row, ['club', 'clubname', 'team']);
                     const age = getVal(row, ['age', 'ageclass', 'class', 'age_class']);
                     
-                    // PRIORITY: Use a 'Position/Order' column if it exists, 
-                    // otherwise use the literal row index + 1
-                    const rawPos = getVal(row, ['pos', 'position', 'startpos', 'order']);
-                    const pos = rawPos ? parseInt(rawPos) : (idx + 1);
-
                     const key = `${name.toLowerCase().trim()}-${club.toLowerCase().trim()}`;
-                    
                     if (!athleteMap.has(key)) {
                         athleteMap.set(key, { name, club, age, runs: {}, total: 0 });
                     }
-                    
                     const athlete = athleteMap.get(key);
-                    athlete.runs[runIndex] = pos;
-                    athlete.total += pos;
+
+                    // 1. Check for explicit "Run X" columns in this specific row
+                    // This handles "Master" files with multiple columns
+                    const runMappings = {
+                        1: getVal(row, ['bib', 'run1', 'run1pos']),
+                        2: getVal(row, ['run2', 'run2pos', 'run2_pos']),
+                        3: getVal(row, ['run3', 'run3pos', 'run3_pos']),
+                        4: getVal(row, ['run4', 'run4pos', 'run4_pos']),
+                        5: getVal(row, ['run5', 'run5pos', 'run5_pos'])
+                    };
+
+                    let dataFoundInColumns = false;
+                    Object.entries(runMappings).forEach(([num, val]) => {
+                        if (val && !isNaN(parseInt(val))) {
+                            const p = parseInt(val);
+                            athlete.runs[num] = p;
+                            runCount = Math.max(runCount, parseInt(num)); // Update global run count
+                            dataFoundInColumns = true;
+                        }
+                    });
+
+                    // 2. Fallback: If no specific "Run X" columns exist, 
+                    // treat the file itself as a single run (the old behavior)
+                    if (!dataFoundInColumns) {
+                        const pos = parseInt(getVal(row, ['pos', 'position', 'startpos', 'order'])) || (idx + 1);
+                        athlete.runs[fileIndex] = pos;
+                        runCount = Math.max(runCount, fileIndex);
+                    }
                 });
+                
+                // Recalculate totals for all athletes after each file 
+                // (Total is the sum of all distinct runs found so far)
+                athleteMap.forEach(a => {
+                    a.total = Object.values(a.runs).reduce((sum, val) => sum + val, 0);
+                });
+                
                 resolve();
             }
         });
@@ -230,7 +200,7 @@ function updateAuditStats(athletes) {
     const statsDiv = document.getElementById('auditSummary');
     if (athletes.length === 0) return;
 
-    // FIX: Sort ages numerically (U8, U10, U12...)
+    // Sort ages numerically (U8, U10, U12...)
     const ages = [...new Set(athletes.map(a => a.age))].sort((a, b) => {
         return getAgeRank(a) - getAgeRank(b);
     });
@@ -238,8 +208,8 @@ function updateAuditStats(athletes) {
     let cumulativeAthletes = 0;
     let html = `
         <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
-            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Actual Draw Equity</span>
-            <span class="text-[10px] font-medium text-slate-500 italic tracking-tight">Wave-Stratified Analysis (${runCount} Runs)</span>
+            <span class="text-[10px] uppercase font-black text-blue-600">Audit Proof: Wave-Stratified Equity</span>
+            <span class="text-[10px] font-medium text-slate-500 italic tracking-tight">${runCount} Runs Analyzed</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">`;
 
@@ -247,34 +217,39 @@ function updateAuditStats(athletes) {
         const group = athletes.filter(a => a.age === age);
         const count = group.length;
         const sums = group.map(a => a.total || 0);
-        
-        // Wave Ideal using the correct chronological order
+                
+        // WAVE IDEAL CALCULATION
         const waveCenter = (cumulativeAthletes + (count + 1) / 2);
         const waveIdealSum = (runCount * waveCenter).toFixed(1);
+        const waveIdealAvg = (waveCenter).toFixed(1);
 
+        // ACTUAL CALCULATIONS
         const avgSum = (sums.reduce((a, b) => a + b, 0) / count).toFixed(1);
+        const actualAvgStart = (avgSum / runCount).toFixed(1);
         const minSum = Math.min(...sums);
         const maxSum = Math.max(...sums);
+        const minAvg = (minSum / runCount).toFixed(1);
+        const maxAvg = (maxSum / runCount).toFixed(1);
 
         html += `
             <div class="border-l-4 border-indigo-500 pl-3 bg-white/50 py-1">
-                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave</div>
+                <div class="text-xs uppercase text-indigo-700 font-black mb-1">${age} Wave (${count} Racers)</div>
                 <div class="space-y-1 text-slate-700">
                     <div class="text-[11px] flex justify-between pr-2 italic text-slate-500">
-                        <span>Wave Ideal Sum:</span>
-                        <span>${waveIdealSum}</span>
+                        <span>Wave Ideal Start Average (Sum):</span>
+                        <span>${waveIdealAvg} <span class="text-[10px] font-normal text-slate-400">(${waveIdealSum})</span></span>
                     </div>
                     <div class="text-[13px] flex justify-between pr-2 border-t border-slate-100 pt-1">
-                        <span>Actual Avg Sum:</span>
-                        <span class="font-bold text-indigo-700">${avgSum}</span>
+                        <span>Actual Avg Start (Sum):</span>
+                        <span class="font-bold text-indigo-700">${actualAvgStart} <span class="text-[10px] font-normal text-slate-400">(${avgSum})</span></span>
                     </div>
                     <div class="text-[11px] flex justify-between pr-2 text-slate-500">
-                        <span>Min/Max Range:</span>
-                        <span class="font-mono">${minSum} – ${maxSum}</span>
+                        <span>Actual Start Range (Sum):</span>
+                        <span class="font-mono">${minAvg} – ${maxAvg} <span class="text-[10px] font-normal text-slate-400">(${minSum} – ${maxSum})</span></span>
                     </div>
                 </div>
             </div>`;
-        
+                
         cumulativeAthletes += count;
     });
 
